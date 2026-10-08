@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS } from '@/config/business';
 import { hashPassword, randomSalt, safeEqual, uid } from '@/lib/crypto';
 import { isEmail } from '@/lib/format';
 import { jsonStorage, secureStorage } from '@/services/storage';
@@ -201,7 +202,8 @@ export class LocalBackend implements Backend {
       const db = await this.load();
       return [...db.services].sort((a, b) => a.sortOrder - b.sortOrder);
     },
-    getSettings: async (): Promise<BusinessSettings> => (await this.load()).settings,
+    // Merge defaults so settings saved by an older app version pick up new fields (e.g. altPhone).
+    getSettings: async (): Promise<BusinessSettings> => ({ ...DEFAULT_SETTINGS, ...(await this.load()).settings }),
   };
 
   // ───────────────────────────── customer orders

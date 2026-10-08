@@ -7,7 +7,7 @@ import { ChatThread, Composer } from '@/components/chat/Chat';
 import { AppText, Chip, IconButton, Screen } from '@/components/ui';
 import { TAB_BAR_HEIGHT } from '@/components/TabBar';
 import { useMyMessages, useMyOrders, useSettings } from '@/hooks/data';
-import { callBusiness } from '@/lib/contact';
+import { callUs } from '@/lib/contact';
 import { backend } from '@/services/backend';
 import { colors, spacing } from '@/theme';
 import type { MessageTopic } from '@/types';
@@ -39,7 +39,7 @@ function AuthGateWrap() {
           </AppText>
           <AppText variant="h1">Messages</AppText>
         </View>
-        <IconButton icon="phone-outline" label="Call Suzy's Cleaners" onPress={() => callBusiness(settings.phone)} />
+        <IconButton icon="phone-outline" label="Call Suzy's Cleaners" onPress={() => callUs(settings)} />
       </View>
       <View style={{ flex: 1, paddingHorizontal: spacing.md }}>
         <AuthGate title="Chat with our team" body="Sign in to ask about your order, pickup, delivery, tailoring or shoe care.">

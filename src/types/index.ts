@@ -167,6 +167,8 @@ export interface BusinessSettings {
   businessName: string;
   tagline: string;
   phone: string;
+  /** Second business line, shown next to the main number. Empty to hide. */
+  altPhone: string;
   email: string;
   website: string;
   minimumOrder: number;

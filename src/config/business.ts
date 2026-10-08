@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: BusinessSettings = {
   businessName: "Suzy's Cleaners",
   tagline: 'Best Quality Dry Cleaners in Burbank',
   phone: '(747) 333-0034',
+  altPhone: '(463) 583-0000',
   email: 'suzyscleaners@sbcglobal.net',
   website: 'https://suzyscleaners.com',
   minimumOrder: 50,

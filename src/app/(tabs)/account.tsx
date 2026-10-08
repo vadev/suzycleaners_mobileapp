@@ -5,7 +5,7 @@ import { Alert } from '@/lib/dialog';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { AppText, Avatar, Button, Card, Divider, ListRow, Screen, Toggle } from '@/components/ui';
 import { useSettings } from '@/hooks/data';
-import { callBusiness, emailBusiness, openDirections } from '@/lib/contact';
+import { businessPhones, callBusiness, emailBusiness, openDirections } from '@/lib/contact';
 import { useAuth } from '@/providers/AuthProvider';
 import { requestPermission } from '@/services/push';
 import { colors, spacing } from '@/theme';
@@ -77,7 +77,12 @@ export default function Account() {
         <Divider />
         <ListRow icon="clock-outline" title="Contact, hours & locations" onPress={() => router.push('/contact')} />
         <Divider />
-        <ListRow icon="phone-outline" title="Call us" subtitle={settings.phone} onPress={() => callBusiness(settings.phone)} />
+        {businessPhones(settings).map((p, i) => (
+          <View key={p}>
+            {i > 0 ? <Divider /> : null}
+            <ListRow icon="phone-outline" title={i === 0 ? 'Call us' : 'Call us (second line)'} subtitle={p} onPress={() => callBusiness(p)} />
+          </View>
+        ))}
         <Divider />
         <ListRow icon="email-outline" title="Email us" subtitle={settings.email} onPress={() => emailBusiness(settings.email)} />
         <Divider />

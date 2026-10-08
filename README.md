@@ -135,7 +135,7 @@ docs/BACKEND.md           Supabase setup guide and security model
 
 ## Before launch
 
-- **Contact details:** confirm the phone number **(747) 333-0034**, the email
+- **Contact details:** confirm the phone numbers **(747) 333-0034** and **(463) 583-0000**, the email
   and the **business hours**. They came from the Burbank Chamber listing, and
   hours are placeholders. Staff can edit all of them in Admin → Settings.
 - **Images:** replace `assets/brand/logo.png` and `assets/services/*.jpg` with

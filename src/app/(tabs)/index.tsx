@@ -8,7 +8,7 @@ import { useMyNotifications, useMyOrders, useServices, useSettings } from '@/hoo
 import { dayName, formatDay } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts, radius, spacing } from '@/theme';
-import { callBusiness, openDirections } from '@/lib/contact';
+import { callUs, openDirections } from '@/lib/contact';
 
 export default function Home() {
   const { user } = useAuth();
@@ -97,7 +97,7 @@ export default function Home() {
           </View>
         </View>
         <View style={styles.visitActions}>
-          <Button title="Call" icon="phone-outline" size="sm" variant="outline" onPress={() => callBusiness(settings.phone)} style={{ flex: 1 }} />
+          <Button title="Call" icon="phone-outline" size="sm" variant="outline" onPress={() => callUs(settings)} style={{ flex: 1 }} />
           <Button title="Directions" icon="map-marker-outline" size="sm" variant="outline" onPress={() => openDirections(settings.locations[0]!)} style={{ flex: 1 }} />
           <Button title="Hours" icon="clock-outline" size="sm" variant="outline" onPress={() => router.push('/contact')} style={{ flex: 1 }} />
         </View>

@@ -14,6 +14,19 @@ const open = async (url: string, fallback?: string) => {
 
 export const callBusiness = (phone: string) => open(`tel:${digitsOnly(phone)}`);
 
+/** The business's phone numbers, main line first. */
+export const businessPhones = (s: { phone: string; altPhone?: string }) => [s.phone, s.altPhone ?? ''].map((p) => p.trim()).filter(Boolean);
+
+/** "Call" buttons: dial directly with one number, or let the customer pick when there are two. */
+export const callUs = (s: { phone: string; altPhone?: string }) => {
+  const phones = businessPhones(s);
+  if (phones.length <= 1) return callBusiness(phones[0] ?? s.phone);
+  Alert.alert("Call Suzy's Cleaners", undefined, [
+    ...phones.map((p) => ({ text: p, onPress: () => callBusiness(p) })),
+    { text: 'Cancel', style: 'cancel' as const },
+  ]);
+};
+
 export const emailBusiness = (email: string, subject = "Question for Suzy's Cleaners") =>
   open(`mailto:${email}?subject=${encodeURIComponent(subject)}`);
 

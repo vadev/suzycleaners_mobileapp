@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ChamberCard } from '@/components/brand/sections';
 import { AppText, Button, Card, Divider, Icon, ListRow, Screen, ScreenHeader, SectionHeader } from '@/components/ui';
 import { useSettings } from '@/hooks/data';
-import { callBusiness, emailBusiness, openDirections, openWebsite } from '@/lib/contact';
+import { businessPhones, callBusiness, callUs, emailBusiness, openDirections, openWebsite } from '@/lib/contact';
 import { dayName } from '@/lib/format';
 import { colors, fonts, spacing } from '@/theme';
 
@@ -18,7 +18,7 @@ export default function Contact() {
       <ScreenHeader title="Contact Us" subtitle="We'd love to hear from you." />
 
       <View style={styles.quick}>
-        <Button title="Call" icon="phone" size="md" variant="dark" onPress={() => callBusiness(settings.phone)} style={{ flex: 1 }} />
+        <Button title="Call" icon="phone" size="md" variant="dark" onPress={() => callUs(settings)} style={{ flex: 1 }} />
         <Button title="Email" icon="email-outline" size="md" variant="outline" onPress={() => emailBusiness(settings.email)} style={{ flex: 1 }} />
       </View>
       <Button title="Message Us in the App" icon="message-processing-outline" size="md" variant="gold" onPress={() => router.push('/messages')} style={{ marginTop: spacing.sm }} />
@@ -35,7 +35,9 @@ export default function Contact() {
           </AppText>
           <Divider style={{ marginVertical: spacing.xs }} />
           <ListRow icon="directions" title="Get directions" onPress={() => openDirections(l)} />
-          <ListRow icon="phone-outline" title={l.phone || settings.phone} onPress={() => callBusiness(l.phone || settings.phone)} />
+          {(l.phone ? [l.phone, ...businessPhones(settings).filter((p) => p !== l.phone)] : businessPhones(settings)).map((p) => (
+            <ListRow key={p} icon="phone-outline" title={p} onPress={() => callBusiness(p)} />
+          ))}
           <ListRow icon="web" title="suzyscleaners.com" onPress={() => openWebsite(settings.website)} />
         </Card>
       ))}

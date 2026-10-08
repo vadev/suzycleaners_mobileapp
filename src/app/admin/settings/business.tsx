@@ -11,7 +11,15 @@ export default function BusinessProfile() {
       <Card style={{ gap: spacing.md }}>
         <TextField label="Business name" value={draft.businessName} onChangeText={(businessName) => setDraft({ ...draft, businessName })} />
         <TextField label="Home screen headline" value={draft.tagline} onChangeText={(tagline) => setDraft({ ...draft, tagline })} />
-        <TextField label="Phone" icon="phone-outline" value={draft.phone} onChangeText={(phone) => setDraft({ ...draft, phone })} keyboardType="phone-pad" />
+        <TextField label="Main phone" icon="phone-outline" value={draft.phone} onChangeText={(phone) => setDraft({ ...draft, phone })} keyboardType="phone-pad" />
+        <TextField
+          label="Second phone"
+          icon="phone-plus-outline"
+          value={draft.altPhone}
+          onChangeText={(altPhone) => setDraft({ ...draft, altPhone })}
+          keyboardType="phone-pad"
+          hint="Leave empty to show only the main number."
+        />
         <TextField label="Email" icon="email-outline" value={draft.email} onChangeText={(email) => setDraft({ ...draft, email })} autoCapitalize="none" keyboardType="email-address" />
         <TextField label="Website" icon="web" value={draft.website} onChangeText={(website) => setDraft({ ...draft, website })} autoCapitalize="none" />
         <TextField label="About Us" value={draft.about} onChangeText={(about) => setDraft({ ...draft, about })} multiline />

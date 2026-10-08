@@ -21,7 +21,7 @@ export default function About() {
       <ScreenHeader title="About Us" />
       <BrandLogo width={240} />
       <AppText variant="hero" style={{ textAlign: 'center', marginTop: spacing.sm }}>
-        Garment care, the Suzy's way
+        Garment care, the Suzy’s way
       </AppText>
       <AppText variant="body" style={styles.lead}>
         {settings.about}

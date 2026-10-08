@@ -39,7 +39,7 @@ export default function Account() {
         <Card style={{ gap: spacing.sm, marginTop: spacing.md }}>
           <BrandLogo width={180} />
           <AppText variant="h2" style={{ textAlign: 'center' }}>
-            Welcome to Suzy's
+            Welcome to Suzy’s
           </AppText>
           <AppText variant="body" style={{ textAlign: 'center', color: colors.muted }}>
             Create an account to book pickups, track orders and chat with our team.
@@ -104,7 +104,7 @@ export default function Account() {
       {/* Staff entry is intentionally hidden: long-press the version label (or open suzyscleaners://staff-login). */}
       <Pressable onLongPress={() => router.push('/staff-login')} delayLongPress={1200} accessible={false} style={styles.footer}>
         <AppText variant="small" style={{ textAlign: 'center', color: colors.faint }}>
-          Suzy's Cleaners · Est. 1996 · v{Constants.expoConfig?.version ?? '1.0.0'}
+          Suzy’s Cleaners · Est. 1996 · v{Constants.expoConfig?.version ?? '1.0.0'}
         </AppText>
       </Pressable>
     </Screen>

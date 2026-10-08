@@ -1,163 +1,116 @@
-# Connecting a production backend
+# Supabase backend
 
-The app talks to data through one interface: `Backend` in
-[`src/services/backend/types.ts`](../src/services/backend/types.ts). The demo
-ships with `LocalBackend` (on-device storage). To go live, add an adapter that
-implements the same interface and select it in
-[`src/services/backend/index.ts`](../src/services/backend/index.ts). No screen
-or component needs to change.
+The app works with two data adapters behind one contract, `Backend`, defined in
+[`src/services/backend/types.ts`](../src/services/backend/types.ts):
 
-```
-src/services/backend/
-  types.ts                 ← the contract (auth, catalog, orders, messages, notifications, admin, subscribe)
-  index.ts                 ← picks the adapter from EXPO_PUBLIC_BACKEND / app.json extra.backend
-  local/LocalBackend.ts    ← demo adapter (AsyncStorage + SecureStore)
-  supabase/…               ← add this
-```
+| Adapter | When it's used | Data lives |
+|---------|----------------|------------|
+| `SupabaseBackend` | `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are set | Your Supabase project, shared by every phone |
+| `LocalBackend` | No Supabase keys, or `EXPO_PUBLIC_BACKEND=local` | On the device only (demo) |
 
-## Supabase (recommended)
+No screen code changes between the two.
 
-### 1. Tables
+## Set up Supabase (about 10 minutes)
 
-```sql
-create type user_role as enum ('customer', 'admin');
-create type order_status as enum (
-  'request_received','pickup_confirmed','driver_on_the_way','picked_up',
-  'cleaning_in_progress','ready_for_pickup','ready_for_delivery',
-  'out_for_delivery','completed','cancelled');
+1. **Create a project** at [supabase.com](https://supabase.com). Pick the
+   US West region for Burbank.
 
-create table profiles (
-  id uuid primary key references auth.users on delete cascade,
-  role user_role not null default 'customer',
-  name text not null,
-  email text not null,
-  phone text,
-  addresses jsonb not null default '[]',
-  default_address_id text,
-  push_token text,
-  notifications_enabled boolean not null default true,
-  created_at timestamptz not null default now()
-);
+2. **Create the database.** Open **SQL Editor** and run these two files in
+   order:
+   1. [`supabase/migrations/20261008000000_init.sql`](../supabase/migrations/20261008000000_init.sql)
+      creates the tables, security rules, server functions, push trigger and
+      realtime.
+   2. [`supabase/migrations/20261008000100_seed_catalog.sql`](../supabase/migrations/20261008000100_seed_catalog.sql)
+      adds the services, prices, hours, locations and notification messages.
 
-create table services (
-  id text primary key, name text, tagline text, description text,
-  highlights text[], price numeric, unit_label text, icon text, image text,
-  active boolean, bookable boolean, sort_order int
-);
+   If you use the Supabase CLI instead, run `supabase link` and then
+   `supabase db push`.
 
-create table settings (id int primary key default 1, data jsonb not null);
+3. **Create the staff login.** Go to **Authentication → Users → Add user**.
+   - Email: `admin@suzyscleaners.com`
+   - Password: your choice. Use a stronger one than the demo password.
+   - Turn on **Auto confirm user**.
 
-create sequence order_number start 1047;
-create table orders (
-  id uuid primary key default gen_random_uuid(),
-  number int not null default nextval('order_number'),
-  customer_id uuid not null references profiles(id),
-  customer_name text, customer_phone text, customer_email text,
-  pickup_address jsonb not null, delivery_address jsonb not null,
-  pickup_date date not null, time_window text not null,
-  lines jsonb not null, instructions text default '',
-  estimated_total numeric not null, final_total numeric,
-  status order_status not null default 'request_received',
-  history jsonb not null default '[]',
-  created_at timestamptz default now(), updated_at timestamptz default now()
-);
+   Then run [`supabase/promote_admin.sql`](../supabase/promote_admin.sql) in
+   the SQL Editor. This is the only way to make someone an admin. The app can
+   never grant it.
 
-create table messages (
-  id uuid primary key default gen_random_uuid(),
-  customer_id uuid not null references profiles(id),
-  sender text not null check (sender in ('customer','admin','system')),
-  sender_name text, body text not null, order_id uuid references orders(id),
-  topic text, created_at timestamptz default now(),
-  read_by_customer boolean default false, read_by_admin boolean default false
-);
+4. **Choose how customers sign up.** Go to **Authentication → Sign In /
+   Providers → Email**.
+   - If **Confirm email** is on (recommended), new customers get a link and
+     the app asks them to confirm before signing in.
+   - If it's off, customers are signed in immediately after sign-up.
 
-create table notifications (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references profiles(id),
-  title text, body text, order_id uuid, status order_status,
-  created_at timestamptz default now(), read boolean default false
-);
-```
+5. **Connect the app.**
+   1. Copy `.env.example` to `.env.local`.
+   2. Fill in the **Project URL** and **anon public** key from **Project
+      Settings → API**. Never put the `service_role` key in the app.
+   3. Restart with `npx expo start --clear`.
+   4. For EAS builds, add the same two variables as EAS environment
+      variables.
 
-### 2. Role-based security (RLS)
+6. **Push notifications.**
+   1. Run `npx eas-cli init` so `extra.eas.projectId` is set in `app.json`.
+   2. Install a development or production build.
 
-Customers can only ever touch their own rows, and anything administrative
-requires `role = 'admin'` on the server. This is what actually keeps customers
-out of the Admin Dashboard. The app's route guards are only a convenience on
-top of it.
+   When a customer allows notifications, their Expo push token is saved to
+   `profiles.push_token`. The database sends the push itself: the
+   `push_notification` trigger calls Expo's push API through `pg_net` for
+   every new notification row. No server code or secrets are needed.
 
-```sql
-create function is_admin() returns boolean language sql stable security definer as $$
-  select exists(select 1 from profiles where id = auth.uid() and role = 'admin')
-$$;
+## How security works
 
-alter table profiles enable row level security;
-create policy "own profile" on profiles for select using (id = auth.uid() or is_admin());
-create policy "update own profile" on profiles for update using (id = auth.uid())
-  with check (role = (select role from profiles where id = auth.uid())); -- can't self-promote
+- **Row-level security** is on for every table:
+  - Customers can only read their own profile, orders, messages and
+    notifications.
+  - Services and settings are public to read and admin-only to change.
+- **Writes go through server functions.** Customers can't insert or update
+  orders, messages or notifications directly. They call `SECURITY DEFINER`
+  functions that check the caller's role first.
 
-alter table orders enable row level security;
-create policy "read own orders" on orders for select using (customer_id = auth.uid() or is_admin());
-create policy "create own orders" on orders for insert with check (customer_id = auth.uid() and status = 'request_received');
-create policy "admin updates orders" on orders for update using (is_admin());
+  | Function | Who | What the server enforces |
+  |----------|-----|--------------------------|
+  | `create_order` | customer | Recomputes prices from `services` (client prices are ignored), enforces the minimum order, valid time window, future date and service radius (from address coordinates) |
+  | `cancel_my_order` | customer | Own order, only before pickup |
+  | `send_my_message` | customer | Own thread, own orders only |
+  | `admin_update_order` | admin | Status and history, final total, notification and message to the customer (which triggers the push) |
+  | `admin_send_message`, `admin_mark_conversation_read`, `admin_list_customers`, `admin_list_conversations` | admin | `require_admin()` |
+- **Roles:**
+  - New accounts are always `customer`; any role in sign-up data is ignored.
+  - A trigger stops anyone except an admin or the SQL editor from changing
+    `role` or `email`.
+  - The staff screen signs out any non-admin and shows the same error as a
+    wrong password, so neither login screen reveals which emails exist.
+- **Realtime:**
+  - `orders`, `messages`, `notifications`, `services`, `settings` and
+    `profiles` are published to Supabase Realtime, and the app refreshes
+    on every change.
+  - Realtime respects row-level security, so customers only receive their
+    own changes.
 
-alter table messages enable row level security;
-create policy "read own thread" on messages for select using (customer_id = auth.uid() or is_admin());
-create policy "customer writes own thread" on messages for insert with check (customer_id = auth.uid() and sender = 'customer');
-create policy "admin writes any thread" on messages for insert with check (is_admin() and sender in ('admin','system'));
+Run `npm run test:db` to re-run the migration test against Postgres (PGlite), with stand-ins for
+Supabase's `auth`, `pg_net` and roles. The tests covered:
+- price tampering
+- the minimum order, radius, time window and date checks
+- customer-to-customer isolation
+- blocked direct writes
+- admin-only functions
+- self-promotion attempts
+- an admin status update reaching the customer
+- the push trigger firing
 
-alter table notifications enable row level security;
-create policy "read own notifications" on notifications for select using (user_id = auth.uid());
-create policy "admin creates notifications" on notifications for insert with check (is_admin());
+## Going further
 
-alter table services enable row level security;
-create policy "public read" on services for select using (true);
-create policy "admin manage" on services for all using (is_admin());
-
-alter table settings enable row level security;
-create policy "public read" on settings for select using (true);
-create policy "admin manage" on settings for all using (is_admin());
-```
-
-Create the staff account in Supabase Auth, then run
-`update profiles set role = 'admin' where email = 'admin@suzyscleaners.com';`.
-After that, delete `src/config/demo.ts`.
-
-### 3. Server-side rules
-
-Move these checks from `LocalBackend` into a Postgres function or Edge
-Function:
-
-- **Order creation:** recompute prices from `services`, enforce the minimum
-  order, and validate the service radius with a geocoder (Google Places or
-  Mapbox).
-- **Order status update** (`admin.updateOrder`): append to `history`, insert
-  the notification and message rows, then send the push through the Expo Push
-  API using `profiles.push_token`. Set `clientSidePush: false` in
-  `src/config/env.ts`.
-
-### 4. Realtime
-
-`Backend.subscribe` maps to Supabase channels. Emit the matching topic
-(`orders`, `messages`, `notifications`, …) on `postgres_changes`, and every
-screen refreshes automatically.
-
-## Firebase alternative
-
-The same model works with Firebase:
-
-- Firebase Auth with an `admin` custom claim.
-- Firestore collections that mirror the tables above.
-- Security rules that check `request.auth.token.admin == true`.
-- A Cloud Function on `orders/{id}` updates that sends the push.
-
-## Payments, maps and push
-
-- **Payments:** add `payments.createIntent(orderId)` to the contract and back
-  it with Stripe (`@stripe/stripe-react-native`). Charge `finalTotal` once
-  staff set it.
-- **Maps:** replace `locateAddress` in `src/services/serviceArea.ts` with
-  Places autocomplete, which also provides lat/lng.
-- **Push:** run `npx eas-cli init` so `extra.eas.projectId` is set, then build
-  a development or production build. Expo Go cannot receive remote pushes on
-  Android.
+- **Payments:**
+  - Add `payments.createIntent(orderId)` to the `Backend` contract.
+  - Implement it with a Supabase Edge Function and Stripe
+    (`@stripe/stripe-react-native` in the app).
+  - Charge `final_total` once staff set it.
+- **Address autocomplete:**
+  - Swap `locateAddress` in `src/services/serviceArea.ts` for Google Places
+    or Mapbox.
+  - The coordinates already flow to `create_order`, which re-checks the
+    radius on the server.
+- **Sample data:** the demo's sample customers and orders are only in the
+  local adapter. A live Supabase project starts clean, with just the catalog
+  and settings.

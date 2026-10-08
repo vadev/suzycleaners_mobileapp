@@ -31,7 +31,7 @@ configureNotifications();
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [toast, setToast] = useState<Toast | null>(null);
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seen = useRef<Set<string> | null>(null);
   const insets = useSafeAreaInsets();

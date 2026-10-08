@@ -8,7 +8,7 @@ import type { Message, MessageSender } from '@/types';
 /** `me` decides which side a bubble sits on: customers see their own on the right, staff see theirs on the right. */
 export function ChatThread({ messages, me, header, bottomInset = 0 }: { messages: Message[]; me: MessageSender; header?: React.ReactNode; bottomInset?: number }) {
   const ref = useRef<ScrollView>(null);
-  let lastDay = '';
+  const dayOf = (iso: string) => formatDateTime(iso).split(' · ')[0]!;
   return (
     <ScrollView
       ref={ref}
@@ -19,10 +19,9 @@ export function ChatThread({ messages, me, header, bottomInset = 0 }: { messages
       showsVerticalScrollIndicator={false}
     >
       {header}
-      {messages.map((m) => {
-        const day = formatDateTime(m.createdAt).split(' · ')[0]!;
-        const showDay = day !== lastDay;
-        lastDay = day;
+      {messages.map((m, i) => {
+        const day = dayOf(m.createdAt);
+        const showDay = i === 0 || day !== dayOf(messages[i - 1]!.createdAt);
         const mine = m.sender === me;
         const system = m.sender === 'system';
         return (

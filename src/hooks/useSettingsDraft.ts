@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Alert } from '@/lib/dialog';
 import { router } from 'expo-router';
+import { useState } from 'react';
+import { Alert } from '@/lib/dialog';
 import { backend } from '@/services/backend';
 import type { BusinessSettings } from '@/types';
 import { useSettings } from './data';
@@ -8,12 +8,10 @@ import { useSettings } from './data';
 /** Editable copy of the business settings with a save action for admin screens. */
 export function useSettingsDraft() {
   const { settings, loading } = useSettings();
-  const [draft, setDraft] = useState<BusinessSettings>(settings);
+  // `null` until the first edit, so the form shows the saved settings once they load.
+  const [edited, setEdited] = useState<BusinessSettings | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!loading) setDraft(settings);
-  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  const draft = edited ?? settings;
 
   const save = async (next: BusinessSettings = draft) => {
     setSaving(true);
@@ -27,5 +25,5 @@ export function useSettingsDraft() {
     }
   };
 
-  return { draft, setDraft, save, saving, loading };
+  return { draft, setDraft: setEdited as (s: BusinessSettings) => void, save, saving, loading };
 }

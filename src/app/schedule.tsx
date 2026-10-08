@@ -11,7 +11,7 @@ import { addressLine, dayName, money, parseDay, toDayKey } from '@/lib/format';
 import { useAuth } from '@/providers/AuthProvider';
 import { useToast } from '@/providers/NotificationProvider';
 import { backend } from '@/services/backend';
-import { checkServiceArea, type ServiceAreaResult } from '@/services/serviceArea';
+import { checkServiceArea, locateAddress, type ServiceAreaResult } from '@/services/serviceArea';
 import { colors, fonts, radius, spacing } from '@/theme';
 import type { Address } from '@/types';
 
@@ -26,7 +26,7 @@ export default function SchedulePickup() {
         <View style={{ flex: 1 }}>
           <AppText variant="h1">Schedule a Pickup</AppText>
           <AppText variant="small" style={{ fontSize: 14 }}>
-            We'll pick up your items and take care of the rest.
+            We’ll pick up your items and take care of the rest.
           </AppText>
         </View>
         <IconButton icon="close" label="Close" onPress={() => router.back()} />
@@ -54,7 +54,8 @@ function ScheduleForm() {
   const [sheet, setSheet] = useState<'pickup' | 'delivery' | null>(null);
   const [instructions, setInstructions] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [area, setArea] = useState<ServiceAreaResult | null>(null);
+  // Radius check result, tagged with the addresses it was computed for.
+  const [areaCheck, setAreaCheck] = useState<{ key: string; result: ServiceAreaResult } | null>(null);
 
   const dates = useMemo(() => {
     const out: string[] = [];
@@ -70,30 +71,26 @@ function ScheduleForm() {
     return out;
   }, [settings.bookingDaysAhead, settings.hours]);
 
-  const [date, setDate] = useState<string | undefined>(undefined);
-  const [timeWindow, setTimeWindow] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    if (!date && dates[0]) setDate(dates[0]);
-  }, [dates, date]);
-  useEffect(() => {
-    if (!timeWindow && settings.timeWindows[0]) setTimeWindow(settings.timeWindows[0]);
-  }, [settings.timeWindows, timeWindow]);
+  // Default to the first available date / window until the customer picks one.
+  const [pickedDate, setDate] = useState<string | undefined>(undefined);
+  const [pickedWindow, setTimeWindow] = useState<string | undefined>(undefined);
+  const date = pickedDate && dates.includes(pickedDate) ? pickedDate : dates[0];
+  const timeWindow = pickedWindow && settings.timeWindows.includes(pickedWindow) ? pickedWindow : settings.timeWindows[0];
 
   // Validate the service radius whenever the pickup / delivery address changes.
+  const areaKey = `${pickup?.id ?? ''}|${delivery?.id ?? ''}|${settings.serviceRadiusMiles}`;
   useEffect(() => {
+    if (!pickup) return;
     let cancelled = false;
-    const target = delivery ?? pickup;
-    if (!pickup) return setArea(null);
-    Promise.all([checkServiceArea(pickup, settings.serviceRadiusMiles), target !== pickup ? checkServiceArea(target!, settings.serviceRadiusMiles) : null]).then(
-      ([a, b]) => {
-        if (cancelled) return;
-        setArea(b && b.status === 'outside' ? b : a);
-      },
-    );
+    const radius = settings.serviceRadiusMiles;
+    Promise.all([checkServiceArea(pickup, radius), delivery ? checkServiceArea(delivery, radius) : null]).then(([a, b]) => {
+      if (!cancelled) setAreaCheck({ key: areaKey, result: b && b.status === 'outside' ? b : a });
+    });
     return () => {
       cancelled = true;
     };
-  }, [pickup, delivery, settings.serviceRadiusMiles]);
+  }, [pickup, delivery, settings.serviceRadiusMiles, areaKey]);
+  const area = pickup && areaCheck?.key === areaKey ? areaCheck.result : null;
 
   const lines = bookable.filter((s) => (qty[s.id] ?? 0) > 0).map((s) => ({ service: s, quantity: qty[s.id]! }));
   const estimate = lines.reduce((sum, l) => sum + l.service.price * l.quantity, 0);
@@ -112,9 +109,15 @@ function ScheduleForm() {
     if (!canSubmit || !pickup || !date || !timeWindow) return;
     setSubmitting(true);
     try {
+      // Attach coordinates so the server can re-check the service radius.
+      const withCoords = async (a: Address): Promise<Address> => {
+        const c = await locateAddress(a);
+        return c ? { ...a, ...c } : a;
+      };
+      const pickupAddress = await withCoords(pickup);
       const order = await backend.orders.create({
-        pickupAddress: pickup,
-        deliveryAddress: delivery ?? pickup,
+        pickupAddress,
+        deliveryAddress: delivery ? await withCoords(delivery) : pickupAddress,
         pickupDate: date,
         timeWindow,
         lines: lines.map((l) => ({ serviceId: l.service.id, quantity: l.quantity })),
@@ -184,15 +187,15 @@ function ScheduleForm() {
         {area?.status === 'outside' ? (
           <Notice tone="danger" icon="map-marker-off-outline">
             This address is about {Math.round(area.miles!)} miles away — outside our {settings.serviceRadiusMiles}-mile pickup & delivery area. Message us and
-            we'll see what we can do, or visit our Burbank studio.
+            we’ll see what we can do, or visit our Burbank studio.
           </Notice>
         ) : area?.status === 'inside' ? (
           <Notice tone="success" icon="map-marker-check-outline">
-            Great — you're within our service area ({area.miles! < 1 ? 'under 1' : Math.round(area.miles!)} mi from our studio).
+            Great — you’re within our service area ({area.miles! < 1 ? 'under 1' : Math.round(area.miles!)} mi from our studio).
           </Notice>
         ) : area?.status === 'unknown' ? (
           <Notice tone="info" icon="map-marker-question-outline">
-            We'll confirm this address is within our {settings.serviceRadiusMiles}-mile area when we confirm your pickup.
+            We’ll confirm this address is within our {settings.serviceRadiusMiles}-mile area when we confirm your pickup.
           </Notice>
         ) : null}
 

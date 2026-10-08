@@ -28,7 +28,10 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["ACCESS_COARSE_LOCATION", "POST_NOTIFICATIONS"],
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -65,7 +68,6 @@
       "typedRoutes": false
     },
     "extra": {
-      "backend": "local",
       "eas": {
         "projectId": ""
       }

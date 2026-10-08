@@ -14,11 +14,11 @@ export default function Services() {
     <Screen tabBarSpace>
       <View style={styles.head}>
         <AppText variant="caption" style={{ color: colors.gold }}>
-          The Suzy's standard
+          The Suzy’s standard
         </AppText>
         <AppText variant="h1">Our Services</AppText>
         <AppText variant="body" style={{ color: colors.muted }}>
-          Hand-finished garment care from Burbank's family studio, with concierge pickup & delivery.
+          Hand-finished garment care from Burbank’s family studio, with concierge pickup & delivery.
         </AppText>
       </View>
 

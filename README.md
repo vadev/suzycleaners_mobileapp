@@ -60,11 +60,19 @@ It runs on iOS and Android from one Expo / React Native codebase.
 - Customers can't sign in through the staff screen, and staff can't sign in
   as customers.
 - `/admin/*` routes redirect anyone who isn't an admin.
-- Every `admin.*` data call re-checks the role in the backend layer. In
-  production this is enforced with Supabase RLS / Firebase rules (see
-  [docs/BACKEND.md](docs/BACKEND.md)).
+- With Supabase, the database enforces this: row-level security plus
+  role-checked server functions (see [docs/BACKEND.md](docs/BACKEND.md)). The
+  local demo adapter applies the same checks on the device.
 
-## Demo accounts
+## Data: Supabase or on-device demo
+
+- **Supabase (production):** copy `.env.example` to `.env.local` and add your
+  project URL and anon key. The app switches to Supabase automatically. Setup
+  takes about 10 minutes: [docs/BACKEND.md](docs/BACKEND.md).
+- **On-device demo:** with no Supabase keys, the app runs on sample data
+  stored on the phone, using the accounts below.
+
+## Demo accounts (on-device demo only)
 
 | Role     | Email                     | Password         |
 |----------|---------------------------|------------------|
@@ -77,8 +85,8 @@ Android Keystore (`expo-secure-store`).
 
 > The demo backend stores data **on the device**. To try the full loop on one
 > phone, book as the customer, sign out, sign in as staff, update the order,
-> then sign back in as the customer. Connect Supabase/Firebase for shared,
-> multi-device data.
+> then sign back in as the customer. With Supabase, the customer and staff can
+> use separate phones and updates arrive live.
 
 ## Run it
 
@@ -109,12 +117,13 @@ src/
   hooks/                  Live data hooks (re-query on backend change events)
   providers/              Auth + notification/toast providers
   services/
-    backend/              Backend contract + LocalBackend adapter
+    backend/              Backend contract, SupabaseBackend and LocalBackend adapters
     push.ts               Push registration, local + Expo push delivery
     serviceArea.ts        Distance / radius validation
   theme/                  Design tokens (colors, type, spacing, radius, shadows)
 assets/brand, assets/services   Logo and service imagery
-docs/BACKEND.md           Supabase schema + RLS policies, Firebase notes, payments/maps/push
+supabase/                 Database migrations (schema, security, functions, push trigger, seed)
+docs/BACKEND.md           Supabase setup guide and security model
 ```
 
 ## Brand
@@ -135,5 +144,6 @@ docs/BACKEND.md           Supabase schema + RLS policies, Firebase notes, paymen
 - **Chamber badge:** swap the typographic Chamber mark in
   `src/components/brand/sections.tsx` for the official member badge if
   desired.
-- **Backend:** connect Supabase or Firebase, delete `src/config/demo.ts`, and
-  move push sending server-side.
+- **Backend:** set up Supabase ([docs/BACKEND.md](docs/BACKEND.md)) and create
+  the staff login with a strong password. The demo passwords in
+  `src/config/demo.ts` only apply to the on-device demo.

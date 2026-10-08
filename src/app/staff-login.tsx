@@ -25,7 +25,7 @@ export default function StaffLogin() {
   const [busy, setBusy] = useState(false);
   const attempts = useRef(0);
   const [lockedUntil, setLockedUntil] = useState(0);
-  const [, tick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (user?.role === 'admin') router.replace('/admin');
@@ -34,13 +34,14 @@ export default function StaffLogin() {
   useEffect(() => {
     if (!lockedUntil) return;
     const t = setInterval(() => {
-      if (Date.now() >= lockedUntil) setLockedUntil(0);
-      tick((n) => n + 1);
+      const t = Date.now();
+      setNow(t);
+      if (t >= lockedUntil) setLockedUntil(0);
     }, 1000);
     return () => clearInterval(t);
   }, [lockedUntil]);
 
-  const locked = lockedUntil > Date.now();
+  const locked = lockedUntil > now;
 
   const submit = async () => {
     if (locked) return;
@@ -54,7 +55,9 @@ export default function StaffLogin() {
       attempts.current += 1;
       if (attempts.current >= MAX_ATTEMPTS) {
         attempts.current = 0;
-        setLockedUntil(Date.now() + LOCKOUT_MS);
+        const t = Date.now();
+        setNow(t);
+        setLockedUntil(t + LOCKOUT_MS);
         setError('Too many attempts. Please wait a minute and try again.');
       } else {
         setError((e as Error).message);
@@ -85,7 +88,7 @@ export default function StaffLogin() {
             <TextField label="Staff email" icon="email-outline" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
             <TextField label="Password" icon="lock-outline" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" onSubmitEditing={submit} error={error} />
             <Button
-              title={locked ? `Locked · ${Math.ceil((lockedUntil - Date.now()) / 1000)}s` : 'Sign In to Dashboard'}
+              title={locked ? `Locked · ${Math.ceil((lockedUntil - now) / 1000)}s` : 'Sign In to Dashboard'}
               icon="shield-check-outline"
               onPress={submit}
               loading={busy}

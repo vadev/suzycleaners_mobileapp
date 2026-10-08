@@ -1,44 +1,59 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { backend, type ChangeTopic } from '@/services/backend';
+
+interface QueryState<T> {
+  key: string;
+  data: T | undefined;
+  error: Error | null;
+}
 
 /**
  * Runs `fetcher` and re-runs it whenever the backend reports a change on one
  * of `topics`. This is what makes an admin status update appear instantly on
- * the customer's screens (Supabase realtime / Firestore listeners in prod).
+ * the customer's screens (Supabase Realtime in production).
  */
 export function useLiveQuery<T>(fetcher: () => Promise<T>, topics: ChangeTopic[], deps: unknown[] = []) {
-  const [data, setData] = useState<T | undefined>(undefined);
-  const [error, setError] = useState<Error | null>(null);
-  const [loading, setLoading] = useState(true);
-  const fetchRef = useRef(fetcher);
-  fetchRef.current = fetcher;
+  const key = JSON.stringify(deps);
   const topicKey = topics.join(',');
+  const [state, setState] = useState<QueryState<T>>({ key: '', data: undefined, error: null });
 
-  const run = useCallback(async () => {
+  // Always call the latest fetcher without re-subscribing on every render.
+  const fetchRef = useRef(fetcher);
+  useLayoutEffect(() => {
+    fetchRef.current = fetcher;
+  });
+
+  const run = useCallback(async (forKey: string) => {
     try {
-      const result = await fetchRef.current();
-      setData(result);
-      setError(null);
+      const data = await fetchRef.current();
+      setState({ key: forKey, data, error: null });
     } catch (e) {
-      setError(e as Error);
-    } finally {
-      setLoading(false);
+      setState((s) => ({ key: forKey, data: s.data, error: e as Error }));
     }
   }, []);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    run();
+    const load = () => {
+      if (active) run(key);
+    };
+    load();
     const unsubscribe = backend.subscribe((topic) => {
-      if (active && (topic === 'session' || topicKey.split(',').includes(topic))) run();
+      if (topic === 'session' || topicKey.split(',').includes(topic)) load();
     });
     return () => {
       active = false;
       unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [run, topicKey, ...deps]);
+  }, [run, key, topicKey]);
 
-  return { data, error, loading, refresh: run };
+  const refresh = useCallback(() => run(key), [run, key]);
+
+  return {
+    data: state.data,
+    error: state.error,
+    /** True until the first result for the current deps has arrived. */
+    loading: state.key !== key,
+    refresh,
+  };
 }

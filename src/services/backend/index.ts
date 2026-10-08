@@ -1,22 +1,22 @@
 import { env } from '@/config/env';
 import { LocalBackend } from './local/LocalBackend';
+import { SupabaseBackend } from './supabase/SupabaseBackend';
 import type { Backend } from './types';
 
 export * from './types';
 
 /**
- * Adapter selection. To go to production:
- *   1. Implement `Backend` in ./supabase/SupabaseBackend.ts (or ./firebase/…)
- *      following docs/BACKEND.md.
- *   2. Return it here when `env.backend` matches.
- * Nothing in src/app or src/components needs to change.
+ * Adapter selection. Screens and components only use the `Backend` contract,
+ * so switching between the demo and Supabase needs no UI changes.
  */
 function createBackend(): Backend {
-  switch (env.backend) {
-    case 'local':
-    default:
-      return new LocalBackend();
+  if (env.backend === 'supabase') {
+    if (!env.supabaseUrl || !env.supabaseAnonKey) {
+      throw new Error('EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY must be set to use the Supabase backend.');
+    }
+    return new SupabaseBackend(env.supabaseUrl, env.supabaseAnonKey);
   }
+  return new LocalBackend();
 }
 
 export const backend = createBackend();

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Alert } from '@/lib/dialog';
 import { AppText, Button, Card, Icon, Screen, ScreenHeader, TextField, Toggle } from '@/components/ui';
@@ -9,14 +9,13 @@ import { spacing } from '@/theme';
 import type { ServiceItem } from '@/types';
 
 export default function ManageServices() {
-  const { allServices, loading } = useServices();
-  const [draft, setDraft] = useState<ServiceItem[]>(allServices);
+  const { allServices } = useServices();
+  // `null` until the first edit, so the form shows the saved services once they load.
+  const [edited, setEdited] = useState<ServiceItem[] | null>(null);
+  const draft = edited ?? allServices;
   const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (!loading) setDraft(allServices);
-  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const patch = (id: string, p: Partial<ServiceItem>) => setDraft((d) => d.map((s) => (s.id === id ? { ...s, ...p } : s)));
+  const patch = (id: string, p: Partial<ServiceItem>) => setEdited(draft.map((s) => (s.id === id ? { ...s, ...p } : s)));
 
   const save = async () => {
     if (draft.some((s) => !s.name.trim())) return Alert.alert('Every service needs a name.');

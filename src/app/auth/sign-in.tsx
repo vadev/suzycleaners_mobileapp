@@ -18,7 +18,8 @@ export default function SignIn() {
     setBusy(true);
     try {
       await signIn(email, password);
-      router.canGoBack() ? router.back() : router.replace('/');
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -45,7 +46,7 @@ export default function SignIn() {
         <TextField label="Password" icon="lock-outline" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" textContentType="password" onSubmitEditing={submit} error={error} />
         <Button title="Sign In" variant="dark" onPress={submit} loading={busy} disabled={!email || !password} />
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
-          <AppText variant="body">New to Suzy's?</AppText>
+          <AppText variant="body">New to Suzy’s?</AppText>
           <Link href="/auth/sign-up" replace>
             <AppText variant="bodyStrong" style={{ color: colors.royal }}>
               Create an account

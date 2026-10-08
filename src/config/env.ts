@@ -1,23 +1,29 @@
 import Constants from 'expo-constants';
 
 /**
- * Runtime configuration. `backend` selects the data adapter
- * (see src/services/backend/index.ts). Set it in app.json → expo.extra.backend
- * or with EXPO_PUBLIC_BACKEND.
+ * Runtime configuration.
+ *
+ * Supabase turns on automatically when EXPO_PUBLIC_SUPABASE_URL and
+ * EXPO_PUBLIC_SUPABASE_ANON_KEY are set (see .env.example). Set
+ * EXPO_PUBLIC_BACKEND=local to force the on-device demo backend.
  */
-type BackendKind = 'local' | 'supabase' | 'firebase';
+type BackendKind = 'local' | 'supabase';
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
 
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || undefined;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || undefined;
+
+const requested = (process.env.EXPO_PUBLIC_BACKEND || undefined) as BackendKind | undefined;
+
 export const env = {
-  backend: (process.env.EXPO_PUBLIC_BACKEND ?? (extra.backend as string) ?? 'local') as BackendKind,
+  backend: (requested ?? (supabaseUrl && supabaseAnonKey ? 'supabase' : 'local')) as BackendKind,
   easProjectId: (extra.eas as { projectId?: string } | undefined)?.projectId || undefined,
-  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  supabaseUrl,
+  supabaseAnonKey,
   /**
-   * Demo only: lets the admin device call Expo's push API directly so a real
-   * device receives the push. In production, send pushes from your server
-   * (Supabase Edge Function / Firebase Cloud Function) and turn this off.
+   * Local demo only: the admin device calls Expo's push API directly. With
+   * Supabase, pushes are sent by the database (push_notification trigger).
    */
   clientSidePush: true,
 };

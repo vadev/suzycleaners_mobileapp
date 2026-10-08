@@ -90,7 +90,7 @@ export default function AdminDashboard() {
             Admin Dashboard
           </AppText>
           <View style={styles.titleRow}>
-            <AppText style={styles.subtitle}>Suzy's Cleaners</AppText>
+            <AppText style={styles.subtitle}>Suzy’s Cleaners</AppText>
             <AppText style={styles.motto}>Keeping Burbank Looking Its Best</AppText>
           </View>
         </View>

@@ -19,7 +19,8 @@ export default function SignUp() {
     setBusy(true);
     try {
       await signUp({ ...form, phone: formatPhone(form.phone) });
-      router.canGoBack() ? router.back() : router.replace('/');
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -35,7 +36,7 @@ export default function SignUp() {
         </View>
         <View style={{ gap: 4 }}>
           <AppText variant="caption" style={{ color: colors.gold }}>
-            Join Suzy's
+            Join Suzy’s
           </AppText>
           <AppText variant="hero">Create your account</AppText>
           <AppText variant="body" style={{ color: colors.muted }}>

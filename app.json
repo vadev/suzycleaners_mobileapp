@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "Suzy's Cleaners",
+    "slug": "suzys-cleaners",
+    "scheme": "suzyscleaners",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FAF6EE",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF6EE"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.suzyscleaners.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Suzy's Cleaners uses your location to confirm your address is inside our pickup & delivery area."
+      }
+    },
+    "android": {
+      "package": "com.suzyscleaners.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#FAF6EE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["ACCESS_COARSE_LOCATION", "POST_NOTIFICATIONS"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "backgroundColor": "#FAF6EE"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#12306B"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Suzy's Cleaners uses your location to confirm your address is inside our pickup & delivery area."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "backend": "local",
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

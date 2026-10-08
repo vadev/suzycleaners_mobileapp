@@ -1,0 +1,316 @@
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert } from '@/lib/dialog';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AddressSheet } from '@/components/AddressSheet';
+import { AuthGate } from '@/components/AuthGate';
+import { AppText, Button, Card, Checkbox, Chip, Divider, Icon, IconButton, Stepper, TextField } from '@/components/ui';
+import { useServices, useSettings } from '@/hooks/data';
+import { addressLine, dayName, money, parseDay, toDayKey } from '@/lib/format';
+import { useAuth } from '@/providers/AuthProvider';
+import { useToast } from '@/providers/NotificationProvider';
+import { backend } from '@/services/backend';
+import { checkServiceArea, type ServiceAreaResult } from '@/services/serviceArea';
+import { colors, fonts, radius, spacing } from '@/theme';
+import type { Address } from '@/types';
+
+const SAME_DAY_CUTOFF_HOUR = 12;
+
+export default function SchedulePickup() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.root, { paddingTop: Platform.OS === 'android' ? insets.top : spacing.sm }]}>
+      <View style={styles.grabber} />
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <AppText variant="h1">Schedule a Pickup</AppText>
+          <AppText variant="small" style={{ fontSize: 14 }}>
+            We'll pick up your items and take care of the rest.
+          </AppText>
+        </View>
+        <IconButton icon="close" label="Close" onPress={() => router.back()} />
+      </View>
+      <AuthGate title="Sign in to book" body="Create a free account to schedule pickups, track orders and message our team.">
+        <ScheduleForm />
+      </AuthGate>
+    </View>
+  );
+}
+
+function ScheduleForm() {
+  const params = useLocalSearchParams<{ service?: string }>();
+  const insets = useSafeAreaInsets();
+  const { user, updateProfile } = useAuth();
+  const { settings } = useSettings();
+  const { services } = useServices();
+  const toast = useToast();
+  const bookable = services.filter((s) => s.bookable);
+
+  const [qty, setQty] = useState<Record<string, number>>(() => (params.service ? { [params.service]: 1 } : {}));
+  const defaultAddr = user?.addresses.find((a) => a.id === user.defaultAddressId) ?? user?.addresses[0];
+  const [pickup, setPickup] = useState<Address | undefined>(defaultAddr);
+  const [delivery, setDelivery] = useState<Address | undefined>(undefined); // undefined = same as pickup
+  const [sheet, setSheet] = useState<'pickup' | 'delivery' | null>(null);
+  const [instructions, setInstructions] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [area, setArea] = useState<ServiceAreaResult | null>(null);
+
+  const dates = useMemo(() => {
+    const out: string[] = [];
+    const now = new Date();
+    for (let i = 0; out.length < settings.bookingDaysAhead && i < 21; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      const hours = settings.hours.find((h) => h.day === dayName(d));
+      if (hours?.closed) continue;
+      if (i === 0 && now.getHours() >= SAME_DAY_CUTOFF_HOUR) continue;
+      out.push(toDayKey(d));
+    }
+    return out;
+  }, [settings.bookingDaysAhead, settings.hours]);
+
+  const [date, setDate] = useState<string | undefined>(undefined);
+  const [timeWindow, setTimeWindow] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!date && dates[0]) setDate(dates[0]);
+  }, [dates, date]);
+  useEffect(() => {
+    if (!timeWindow && settings.timeWindows[0]) setTimeWindow(settings.timeWindows[0]);
+  }, [settings.timeWindows, timeWindow]);
+
+  // Validate the service radius whenever the pickup / delivery address changes.
+  useEffect(() => {
+    let cancelled = false;
+    const target = delivery ?? pickup;
+    if (!pickup) return setArea(null);
+    Promise.all([checkServiceArea(pickup, settings.serviceRadiusMiles), target !== pickup ? checkServiceArea(target!, settings.serviceRadiusMiles) : null]).then(
+      ([a, b]) => {
+        if (cancelled) return;
+        setArea(b && b.status === 'outside' ? b : a);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [pickup, delivery, settings.serviceRadiusMiles]);
+
+  const lines = bookable.filter((s) => (qty[s.id] ?? 0) > 0).map((s) => ({ service: s, quantity: qty[s.id]! }));
+  const estimate = lines.reduce((sum, l) => sum + l.service.price * l.quantity, 0);
+  const minMet = estimate >= settings.minimumOrder;
+  const outside = area?.status === 'outside';
+  const canSubmit = lines.length > 0 && minMet && !!pickup && !!date && !!timeWindow && !outside;
+
+  const toggle = (id: string) => setQty((q) => ({ ...q, [id]: q[id] ? 0 : 1 }));
+
+  const addAddress = async (a: Address) => {
+    if (!user) return;
+    await updateProfile({ addresses: [...user.addresses, a], defaultAddressId: user.defaultAddressId ?? a.id });
+  };
+
+  const submit = async () => {
+    if (!canSubmit || !pickup || !date || !timeWindow) return;
+    setSubmitting(true);
+    try {
+      const order = await backend.orders.create({
+        pickupAddress: pickup,
+        deliveryAddress: delivery ?? pickup,
+        pickupDate: date,
+        timeWindow,
+        lines: lines.map((l) => ({ serviceId: l.service.id, quantity: l.quantity })),
+        instructions: instructions.trim(),
+      });
+      router.replace({ pathname: '/order/[id]', params: { id: order.id } });
+      toast.show({ title: 'Pickup requested', body: `Order #${order.number} is in. We'll confirm shortly.`, icon: 'check-circle-outline' });
+    } catch (e) {
+      Alert.alert('Could not submit', (e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 130, gap: spacing.md }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {/* Services */}
+        <Card padded={false} style={styles.group}>
+          {bookable.map((s, i) => {
+            const on = (qty[s.id] ?? 0) > 0;
+            return (
+              <View key={s.id}>
+                {i > 0 ? <Divider style={{ marginLeft: 56 }} /> : null}
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={`${s.name}, ${money(s.price)} ${s.unitLabel}`}
+                  onPress={() => toggle(s.id)}
+                  style={styles.serviceRow}
+                >
+                  <Checkbox checked={on} />
+                  <Icon name={s.icon} size={24} color={colors.navy} />
+                  <View style={{ flex: 1 }}>
+                    <AppText style={styles.serviceName}>{s.name}</AppText>
+                    <AppText variant="small">
+                      {money(s.price)} {s.unitLabel}
+                    </AppText>
+                  </View>
+                  {on ? <Stepper value={qty[s.id]!} min={1} onChange={(n) => setQty((q) => ({ ...q, [s.id]: n }))} /> : null}
+                </Pressable>
+              </View>
+            );
+          })}
+        </Card>
+
+        {/* Addresses */}
+        <Card padded={false} style={styles.group}>
+          <Pressable accessibilityRole="button" onPress={() => setSheet('pickup')} style={styles.addrRow}>
+            <Icon name="map-marker-outline" size={22} />
+            <AppText style={styles.addrText} numberOfLines={1}>
+              <AppText style={styles.addrLabel}>Pickup: </AppText>
+              {pickup ? addressLine(pickup) : 'Add an address'}
+            </AppText>
+            <Icon name="chevron-right" size={22} color={colors.faint} />
+          </Pressable>
+          <Divider style={{ marginLeft: 50 }} />
+          <Pressable accessibilityRole="button" onPress={() => setSheet('delivery')} style={styles.addrRow}>
+            <Icon name="home-outline" size={22} />
+            <AppText style={styles.addrText} numberOfLines={1}>
+              <AppText style={styles.addrLabel}>Delivery: </AppText>
+              {delivery ? addressLine(delivery) : 'Same as pickup'}
+            </AppText>
+            <Icon name="chevron-right" size={22} color={colors.faint} />
+          </Pressable>
+        </Card>
+        {area?.status === 'outside' ? (
+          <Notice tone="danger" icon="map-marker-off-outline">
+            This address is about {Math.round(area.miles!)} miles away — outside our {settings.serviceRadiusMiles}-mile pickup & delivery area. Message us and
+            we'll see what we can do, or visit our Burbank studio.
+          </Notice>
+        ) : area?.status === 'inside' ? (
+          <Notice tone="success" icon="map-marker-check-outline">
+            Great — you're within our service area ({area.miles! < 1 ? 'under 1' : Math.round(area.miles!)} mi from our studio).
+          </Notice>
+        ) : area?.status === 'unknown' ? (
+          <Notice tone="info" icon="map-marker-question-outline">
+            We'll confirm this address is within our {settings.serviceRadiusMiles}-mile area when we confirm your pickup.
+          </Notice>
+        ) : null}
+
+        {/* Date & time */}
+        <Card padded={false} style={[styles.group, { padding: spacing.sm, gap: spacing.sm }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {dates.map((d) => {
+              const pd = parseDay(d);
+              const label = d === toDayKey(new Date()) ? 'Today' : `${dayName(pd)} ${pd.getDate()}`;
+              return <Chip key={d} label={label} selected={d === date} onPress={() => setDate(d)} style={styles.dateChip} />;
+            })}
+          </ScrollView>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {settings.timeWindows.map((w) => (
+              <Chip key={w} label={w} selected={w === timeWindow} onPress={() => setTimeWindow(w)} style={{ flex: 1 }} />
+            ))}
+          </View>
+        </Card>
+
+        <TextField
+          placeholder="Special instructions (gate code, concierge, stains, tailoring notes…)"
+          multiline
+          value={instructions}
+          onChangeText={(t) => setInstructions(t.slice(0, 500))}
+          counter={500}
+          accessibilityLabel="Special instructions"
+        />
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            Alert.alert(
+              'About your estimate',
+              `Estimates use our starting prices. Your final total is confirmed after we inspect your items. Pickup & delivery requires a $${settings.minimumOrder} minimum order.`,
+            )
+          }
+          style={[styles.estimate, !minMet && lines.length > 0 && { backgroundColor: colors.warningSoft }]}
+        >
+          <Icon name="tag-outline" size={22} color={colors.navy} />
+          <AppText style={styles.estimateText}>
+            {lines.length === 0
+              ? `Select services · $${settings.minimumOrder} minimum`
+              : minMet
+                ? `Estimated ${money(estimate)} · Minimum ${money(settings.minimumOrder)} met`
+                : `Estimated ${money(estimate)} · Add ${money(settings.minimumOrder - estimate)} to reach the ${money(settings.minimumOrder)} minimum`}
+          </AppText>
+          <Icon name="information-outline" size={20} color={colors.faint} />
+        </Pressable>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <Button title="Submit Pickup Request" onPress={submit} loading={submitting} disabled={!canSubmit} />
+      </View>
+
+      <AddressSheet
+        visible={sheet === 'pickup'}
+        title="Pickup address"
+        addresses={user?.addresses ?? []}
+        selectedId={pickup?.id}
+        onClose={() => setSheet(null)}
+        onSelect={(a) => {
+          setPickup(a);
+          setSheet(null);
+        }}
+        onCreate={addAddress}
+      />
+      <AddressSheet
+        visible={sheet === 'delivery'}
+        title="Delivery address"
+        addresses={user?.addresses ?? []}
+        selectedId={delivery?.id ?? pickup?.id}
+        onClose={() => setSheet(null)}
+        onSelect={(a) => {
+          setDelivery(a.id === pickup?.id ? undefined : a);
+          setSheet(null);
+        }}
+        onCreate={addAddress}
+      />
+    </KeyboardAvoidingView>
+  );
+}
+
+function Notice({ tone, icon, children }: { tone: 'danger' | 'success' | 'info'; icon: string; children: React.ReactNode }) {
+  const c = {
+    danger: [colors.danger, colors.dangerSoft],
+    success: [colors.success, colors.successSoft],
+    info: [colors.info, colors.infoSoft],
+  }[tone];
+  return (
+    <View style={[styles.notice, { backgroundColor: c[1] }]}>
+      <Icon name={icon} size={20} color={c[0]} />
+      <AppText variant="small" style={{ flex: 1, color: c[0] }}>
+        {children}
+      </AppText>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.cream, paddingHorizontal: spacing.md },
+  grabber: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: colors.sand, marginBottom: spacing.sm },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.md },
+  group: { borderRadius: radius.xl, overflow: 'hidden' },
+  serviceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, minHeight: 64, paddingVertical: 8 },
+  serviceName: { fontFamily: fonts.semibold, fontSize: 16, color: colors.navy900 },
+  addrRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, minHeight: 56 },
+  addrText: { flex: 1, fontFamily: fonts.medium, fontSize: 15.5, color: colors.navy900 },
+  addrLabel: { fontFamily: fonts.semibold, fontSize: 15.5, color: colors.navy900 },
+  dateChip: { minWidth: 92 },
+  estimate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.sky,
+  },
+  estimateText: { flex: 1, fontFamily: fonts.medium, fontSize: 14.5, color: colors.navy900 },
+  notice: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', padding: spacing.sm, borderRadius: radius.md, marginTop: -4 },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: spacing.sm, backgroundColor: 'rgba(250,246,238,0.97)' },
+});
